@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FiMenu, FiUser, FiBell, FiSettings, FiLogOut } from "react-icons/fi";
+import { FiMenu, FiUser, FiBell, FiSettings, FiLogOut, FiShield } from "react-icons/fi";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,24 +10,36 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ChangePasswordModal } from "./ChangePasswordModal";
+import { useNavigate } from "react-router-dom";
 
 interface HeaderProps {
   onMenuClick?: () => void;
   userName?: string;
   userEmail?: string;
   systemTitle?: string;
+  sidebarOpen?: boolean;
 }
 
 export const Header = ({ 
   onMenuClick, 
   userName = "João Silva", 
   userEmail = "joao.silva@setasc.mt.gov.br",
-  systemTitle = "Sistema de Gestão de Contratos - SETASC/MT"
+  systemTitle = "Sistema de Gestão de Contratos - SETASC/MT",
+  sidebarOpen = false
 }: HeaderProps) => {
   const [notifications] = useState(3);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    // Aqui você pode adicionar lógica de logout (limpar tokens, etc.)
+    navigate("/login");
+  };
 
   return (
-    <header className="helium-header h-16 px-6 flex items-center justify-between w-full">
+    <header className={`helium-header h-16 px-6 flex items-center justify-between w-full transition-all duration-300 ${
+      sidebarOpen ? 'lg:pl-72' : 'lg:pl-6'
+    }`}>
       {/* Logo e Menu */}
       <div className="flex items-center gap-4">
         <Button
@@ -43,7 +55,7 @@ export const Header = ({
           <div className="w-8 h-8 bg-white/20 rounded-md flex items-center justify-center">
             <span className="text-sm font-bold text-white">H</span>
           </div>
-          <div className="hidden md:block">
+          <div className={`transition-all duration-300 ${sidebarOpen ? 'hidden lg:block' : 'hidden md:block'}`}>
             <h1 className="text-lg font-semibold text-header-foreground">Helium</h1>
             <p className="text-xs text-header-foreground/80">{systemTitle}</p>
           </div>
@@ -99,8 +111,20 @@ export const Header = ({
               <FiSettings className="mr-2 h-4 w-4" />
               <span>Configurações</span>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <div className="w-full">
+                <ChangePasswordModal 
+                  trigger={
+                    <div className="flex items-center w-full cursor-pointer">
+                      <FiShield className="mr-2 h-4 w-4" />
+                      <span>Alterar Senha</span>
+                    </div>
+                  }
+                />
+              </div>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <FiLogOut className="mr-2 h-4 w-4" />
               <span>Sair</span>
             </DropdownMenuItem>

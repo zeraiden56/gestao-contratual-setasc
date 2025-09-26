@@ -14,6 +14,7 @@ export const Layout = ({ children }: LayoutProps) => {
     <div className="min-h-screen bg-background">
       <Header 
         onMenuClick={() => setSidebarOpen(!sidebarOpen)}
+        sidebarOpen={sidebarOpen}
       />
       
       <div className="flex">

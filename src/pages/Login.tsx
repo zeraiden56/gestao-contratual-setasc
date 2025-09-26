@@ -125,11 +125,13 @@ export default function Login() {
 
               {/* Links */}
               <div className="text-center space-y-2">
-                <Button variant="link" className="text-sm text-muted-foreground">
+                <Button variant="link" className="text-sm text-muted-foreground hover:text-primary">
                   Esqueceu sua senha?
                 </Button>
                 <div className="text-xs text-muted-foreground">
                   Precisa de ajuda? Entre em contato com o suporte técnico
+                  <br />
+                  <strong>suporte@setasc.mt.gov.br</strong> | (65) 3613-3000
                 </div>
               </div>
             </form>
