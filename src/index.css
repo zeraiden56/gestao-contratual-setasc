@@ -2,15 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Helium Design System - Sistema de Gestão Governamental 
-Cores baseadas na paleta institucional azul, gradientes e animações modernas.
-Todos os valores de cor em HSL para máxima flexibilidade.
-*/
-
+/* ------------------------------
+   🔹 Variáveis e temas
+--------------------------------*/
 @layer base {
   :root {
     /* Cores base do sistema */
-    --background: 0 0% 98%;
+    --background: 214 100% 97%;
     --foreground: 210 15% 15%;
 
     /* Cards e superfícies */
@@ -35,19 +33,15 @@ Todos os valores de cor em HSL para máxima flexibilidade.
     --muted: 210 15% 95%;
     --muted-foreground: 210 10% 55%;
 
-    /* Accent - azul mais claro */
+    /* Accent */
     --accent: 210 40% 94%;
     --accent-foreground: 220 85% 35%;
 
-    /* Estados de erro */
+    /* Estados */
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-
-    /* Estados de sucesso */
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
-
-    /* Estados de aviso */
     --warning: 45 93% 47%;
     --warning-foreground: 0 0% 100%;
 
@@ -56,7 +50,7 @@ Todos os valores de cor em HSL para máxima flexibilidade.
     --input: 214 32% 91%;
     --ring: 220 85% 35%;
 
-    /* Sidebar governamental - tons escuros */
+    /* Sidebar */
     --sidebar-background: 210 25% 8%;
     --sidebar-foreground: 210 20% 85%;
     --sidebar-primary: 220 85% 35%;
@@ -66,122 +60,129 @@ Todos os valores de cor em HSL para máxima flexibilidade.
     --sidebar-border: 210 25% 15%;
     --sidebar-ring: 220 85% 35%;
 
-    /* Header governamental */
+    /* Header */
     --header-background: 220 85% 35%;
     --header-foreground: 0 0% 100%;
 
-    /* Gradientes institucionais */
+    /* Gradientes */
     --gradient-primary: linear-gradient(135deg, hsl(220 85% 35%), hsl(220 75% 45%));
     --gradient-header: linear-gradient(90deg, hsl(220 85% 35%), hsl(220 95% 25%));
     --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 15% 98%));
 
-    /* Sombras elegantes */
+    /* 🔹 Novo gradiente institucional para login */
+    --gradient-login: linear-gradient(
+      135deg,
+      hsl(220 90% 45%) 0%,
+      hsl(220 85% 35%) 45%,
+      hsl(220 75% 50%) 100%
+    );
+
+    /* Sombras */
     --shadow-sm: 0 1px 2px hsl(210 25% 8% / 0.05);
     --shadow-md: 0 4px 6px hsl(210 25% 8% / 0.07), 0 2px 4px hsl(210 25% 8% / 0.05);
     --shadow-lg: 0 10px 15px hsl(210 25% 8% / 0.1), 0 4px 6px hsl(210 25% 8% / 0.05);
     --shadow-xl: 0 20px 25px hsl(210 25% 8% / 0.1), 0 10px 10px hsl(210 25% 8% / 0.04);
 
-    /* Raio de borda padrão */
+    /* Raio e transições */
     --radius: 0.5rem;
-
-    /* Transições suaves */
     --transition-fast: all 0.15s ease-in-out;
     --transition-normal: all 0.3s ease-in-out;
     --transition-slow: all 0.5s ease-in-out;
   }
 
+  /* Tema escuro */
   .dark {
-    /* Modo escuro para sistema governamental */
     --background: 210 25% 6%;
     --foreground: 210 20% 90%;
-
     --card: 210 25% 8%;
     --card-foreground: 210 20% 90%;
-
     --popover: 210 25% 8%;
     --popover-foreground: 210 20% 90%;
-
     --primary: 220 75% 55%;
     --primary-light: 220 65% 65%;
     --primary-dark: 220 85% 45%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 210 25% 12%;
     --secondary-foreground: 210 20% 90%;
-
     --muted: 210 25% 10%;
     --muted-foreground: 210 15% 65%;
-
     --accent: 210 25% 14%;
     --accent-foreground: 220 75% 55%;
-
-    --destructive: 0 75% 55%;
-    --destructive-foreground: 0 0% 100%;
-
-    --success: 142 70% 45%;
-    --success-foreground: 0 0% 100%;
-
-    --warning: 45 85% 55%;
-    --warning-foreground: 0 0% 100%;
-
     --border: 210 25% 15%;
-    --input: 210 25% 15%;
     --ring: 220 75% 55%;
-
     --sidebar-background: 210 30% 4%;
     --sidebar-foreground: 210 20% 85%;
     --sidebar-primary: 220 75% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 30% 8%;
-    --sidebar-accent-foreground: 210 20% 85%;
-    --sidebar-border: 210 30% 10%;
-    --sidebar-ring: 220 75% 55%;
-
     --header-background: 220 85% 25%;
     --header-foreground: 0 0% 100%;
-
     --gradient-primary: linear-gradient(135deg, hsl(220 75% 55%), hsl(220 65% 65%));
     --gradient-header: linear-gradient(90deg, hsl(220 85% 25%), hsl(220 95% 15%));
     --gradient-card: linear-gradient(145deg, hsl(210 25% 8%), hsl(210 25% 6%));
 
-    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.1);
-    --shadow-md: 0 4px 6px hsl(0 0% 0% / 0.15), 0 2px 4px hsl(0 0% 0% / 0.1);
-    --shadow-lg: 0 10px 15px hsl(0 0% 0% / 0.2), 0 4px 6px hsl(0 0% 0% / 0.15);
-    --shadow-xl: 0 20px 25px hsl(0 0% 0% / 0.25), 0 10px 10px hsl(0 0% 0% / 0.1);
+    /* Gradiente login escuro */
+    --gradient-login: linear-gradient(
+      135deg,
+      hsl(220 75% 40%) 0%,
+      hsl(220 75% 30%) 45%,
+      hsl(220 65% 45%) 100%
+    );
   }
 }
 
+/* ------------------------------
+   🔹 Reset global e layout base
+--------------------------------*/
 @layer base {
   * {
-    @apply border-border;
+    @apply border-border box-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: hsl(var(--background));
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply text-foreground font-sans antialiased;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #root {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
   }
 
   /* Scrollbar personalizada */
   ::-webkit-scrollbar {
     width: 6px;
+    height: 6px;
   }
-
   ::-webkit-scrollbar-track {
     @apply bg-muted;
   }
-
   ::-webkit-scrollbar-thumb {
     @apply bg-muted-foreground/30 rounded-full;
   }
-
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground/50;
   }
 }
 
+/* ------------------------------
+   🔹 Componentes utilitários
+--------------------------------*/
 @layer components {
-  /* Componentes do sistema Helium */
   .helium-card {
-    @apply bg-card rounded-lg shadow-md border border-border p-6;
+    @apply bg-card text-card-foreground rounded-lg shadow-md border border-border p-6;
     background: var(--gradient-card);
   }
 
@@ -197,7 +198,7 @@ Todos os valores de cor em HSL para máxima flexibilidade.
   }
 
   .helium-button-secondary {
-    @apply bg-secondary hover:bg-secondary text-secondary-foreground font-medium px-4 py-2 rounded-md border border-border;
+    @apply bg-secondary text-secondary-foreground font-medium px-4 py-2 rounded-md border border-border hover:bg-secondary;
     transition: var(--transition-fast);
   }
 
@@ -225,30 +226,18 @@ Todos os valores de cor em HSL para máxima flexibilidade.
     @apply bg-sidebar-primary text-sidebar-primary-foreground;
     box-shadow: var(--shadow-sm);
   }
-
-  /* Animações do sistema */
-  .helium-fade-in {
-    animation: fadeIn 0.3s ease-out;
-  }
-
-  .helium-slide-up {
-    animation: slideUp 0.3s ease-out;
-  }
-
-  .helium-scale-in {
-    animation: scaleIn 0.2s ease-out;
-  }
 }
 
+/* ------------------------------
+   🔹 Animações e utilitários
+--------------------------------*/
 @layer utilities {
   .transition-helium {
     transition: var(--transition-normal);
   }
-
   .shadow-helium {
     box-shadow: var(--shadow-md);
   }
-
   .gradient-helium {
     background: var(--gradient-primary);
   }
@@ -264,7 +253,6 @@ Todos os valores de cor em HSL para máxima flexibilidade.
     transform: translateY(0);
   }
 }
-
 @keyframes slideUp {
   from {
     opacity: 0;
@@ -275,7 +263,6 @@ Todos os valores de cor em HSL para máxima flexibilidade.
     transform: translateY(0);
   }
 }
-
 @keyframes scaleIn {
   from {
     opacity: 0;
@@ -285,4 +272,34 @@ Todos os valores de cor em HSL para máxima flexibilidade.
     opacity: 1;
     transform: scale(1);
   }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out;
+}
+
+.perspective {
+  perspective: 1000px;
+}
+.backface-hidden {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+@keyframes slide-right {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(300%);
+  }
+}
+
+.animate-slide-right {
+  animation: slide-right 1.5s ease-in-out infinite;
 }

@@ -1,10 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Helium - Sistema de Gestão Governamental</title>
-    <meta name="description" content="Sistema Helium - Plataforma integrada para gestão de contratos administrativos do governo de Mato Grosso" />
+
+    <meta
+      name="description"
+      content="Sistema Helium - Plataforma integrada para gestão de contratos administrativos do governo de Mato Grosso"
+    />
     <meta name="author" content="SETASC - Secretaria de Administração" />
 
     <meta property="og:title" content="Helium - Sistema de Gestão Governamental" />
@@ -17,13 +21,48 @@
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
 
     <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Fallback rápido antes do React carregar -->
+    <style>
+      body {
+        margin: 0;
+        font-family: "Inter", sans-serif;
+        background: linear-gradient(135deg, #1e3a8a, #1e40af);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+      .splash {
+        text-align: center;
+      }
+      .splash img {
+        width: 90px;
+        margin-bottom: 20px;
+      }
+      .splash p {
+        color: rgba(255, 255, 255, 0.7);
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Fallback inicial (antes do React montar) -->
+      <div class="splash">
+        <img src="/logo_helium.png" alt="Helium" />
+        <h1>Helium</h1>
+        <p>Carregando sistema...</p>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
