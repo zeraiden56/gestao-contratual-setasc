@@ -1,99 +1,106 @@
 "use client";
 
-import * as XLSX from "xlsx";
-import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
-import KPICard from "../components/KPICard";
-import { Filters } from "../components/Filters";
-import { Mapa } from "../components/Mapa";
+import { useMemo } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useEntregas } from "../hooks/useEntregas";
 
-interface Linha {
-  Programa: string;
-  Municipio: string;
-  Ano: number;
-  Valor: number;
-  Quantidade: number;
-}
+export default function EntregasDetalhes() {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
 
-export default function DetalhesPrograma() {
-  const location = useLocation();
-  const params = new URLSearchParams(location.search);
-  const nomePrograma = decodeURIComponent(params.get("programa") || "");
+  const programa = params.get("programa") ?? "(sem valor)";
+  const ano = params.get("ano") ? Number(params.get("ano")) : undefined;
+  const cidade = params.get("cidade") ?? "";
 
-  const [dados, setDados] = useState<Linha[]>([]);
-  const [ano, setAno] = useState(2024);
-  const [cidade, setCidade] = useState("");
+  const { loading, error, getItensDoPrograma } = useEntregas({
+    chunkSize: 0,
+    groupBy: "produto_tipo", // mude aqui se o Dashboard usar outra chave
+  });
 
-  useEffect(() => {
-    async function carregar() {
-      const res = await fetch("/entregas_setasc_nger.xlsx");
-      const buf = await res.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array" });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const json = XLSX.utils.sheet_to_json<Linha>(sheet);
-      setDados(json.filter((r) => r.Programa === nomePrograma));
-    }
-    carregar();
-  }, [nomePrograma]);
-
-  const cidades = useMemo(
-    () => Array.from(new Set(dados.map((d) => d.Municipio))).sort(),
-    [dados]
+  const itens = useMemo(
+    () => getItensDoPrograma({ nome: programa, ano, cidade }),
+    [getItensDoPrograma, programa, ano, cidade]
   );
 
-  const filtrados = useMemo(() => {
-    let arr = dados.filter((d) => d.Ano === ano);
-    if (cidade) arr = arr.filter((d) => d.Municipio === cidade);
-    return arr;
-  }, [dados, ano, cidade]);
-
-  const totalValor = filtrados.reduce((sum, d) => sum + (d.Valor || 0), 0);
-  const totalQtd = filtrados.reduce((sum, d) => sum + (d.Quantidade || 0), 0);
+  const totalValor = itens.reduce((s, r) => s + (r.valor_total || 0), 0);
+  const totalQtd = itens.reduce((s, r) => s + (r.qtde || 0), 0);
 
   return (
-    <div className="p-8 bg-gray-50 min-h-screen space-y-8">
-      <h1 className="text-3xl font-bold text-gray-800">
-        📊 Detalhes do Programa: {nomePrograma}
-      </h1>
+    <div className="p-8 bg-gray-50 min-h-screen space-y-6">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate(-1)}
+          className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50"
+        >
+          ← Voltar
+        </button>
+        <h1 className="text-2xl font-bold text-gray-800">
+          {programa}
+          {ano ? ` — ${ano}` : ""} {cidade ? ` — ${cidade}` : ""}
+        </h1>
+        {loading && <span className="text-sm text-gray-500">carregando…</span>}
+        {error && <span className="text-sm text-red-600">Erro: {error}</span>}
+      </div>
 
-      <Filters ano={ano} setAno={setAno} cidade={cidade} setCidade={setCidade} cidades={cidades} />
-
-      <div className="flex flex-wrap justify-between items-center gap-4">
-        <KPICard title="Total de Entregas" value={totalQtd.toLocaleString("pt-BR")} color="bg-blue-700 text-white" />
-        <KPICard title="Valor Total" value={`R$ ${totalValor.toLocaleString("pt-BR")}`} color="bg-green-700 text-white" />
-        <div className="flex-1 max-w-sm">
-          <Mapa cidadeSelecionada={cidade} onSelectCidade={setCidade} />
+      <div className="flex gap-4 flex-wrap">
+        <div className="px-4 py-3 rounded-xl bg-white border">
+          <div className="text-xs text-gray-500">Valor total</div>
+          <div className="text-lg font-semibold">
+            R$ {totalValor.toLocaleString("pt-BR")}
+          </div>
+        </div>
+        <div className="px-4 py-3 rounded-xl bg-white border">
+          <div className="text-xs text-gray-500">Quantidade total</div>
+          <div className="text-lg font-semibold">
+            {totalQtd.toLocaleString("pt-BR")}
+          </div>
+        </div>
+        <div className="px-4 py-3 rounded-xl bg-white border">
+          <div className="text-xs text-gray-500">Registros</div>
+          <div className="text-lg font-semibold">{itens.length}</div>
         </div>
       </div>
 
-      <div className="overflow-x-auto bg-white rounded-lg shadow mt-6">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-100 text-slate-700">
+      {/* Tabela simples */}
+      <div className="overflow-auto rounded-xl border bg-white">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-50 text-gray-600">
             <tr>
-              <th className="p-2 text-left">Município</th>
-              <th className="p-2 text-right">Ano</th>
-              <th className="p-2 text-right">Entregas</th>
-              <th className="p-2 text-right">Valor</th>
+              <th className="text-left px-4 py-3">Entrega</th>
+              <th className="text-left px-4 py-3">Local</th>
+              <th className="text-left px-4 py-3">Ação</th>
+              <th className="text-left px-4 py-3">Início</th>
+              <th className="text-left px-4 py-3">Conclusão</th>
+              <th className="text-right px-4 py-3">Qtde</th>
+              <th className="text-right px-4 py-3">Valor</th>
             </tr>
           </thead>
           <tbody>
-            {filtrados.map((f, i) => (
-              <tr key={i} className="border-b hover:bg-slate-50">
-                <td className="p-2">{f.Municipio}</td>
-                <td className="p-2 text-right">{f.Ano}</td>
-                <td className="p-2 text-right">{f.Quantidade.toLocaleString("pt-BR")}</td>
-                <td className="p-2 text-right">R$ {f.Valor.toLocaleString("pt-BR")}</td>
+            {itens.map((r) => (
+              <tr key={r.id} className="border-t">
+                <td className="px-4 py-3">{r.produto ?? r.acao ?? "—"}</td>
+                <td className="px-4 py-3">{r.local ?? "—"}</td>
+                <td className="px-4 py-3">{r.acao ?? "—"}</td>
+                <td className="px-4 py-3">{r.data_inicio ?? "—"}</td>
+                <td className="px-4 py-3">{r.data_conclusao ?? "—"}</td>
+                <td className="px-4 py-3 text-right">
+                  {(r.qtde ?? 0).toLocaleString("pt-BR")}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  R$ {(r.valor_total ?? 0).toLocaleString("pt-BR")}
+                </td>
               </tr>
             ))}
+            {itens.length === 0 && (
+              <tr>
+                <td className="px-4 py-6 text-center text-gray-500" colSpan={7}>
+                  Nenhum registro encontrado para os filtros atuais.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
-
-      {!filtrados.length && (
-        <p className="text-center text-slate-500 mt-6">
-          Nenhum registro encontrado para os filtros selecionados.
-        </p>
-      )}
     </div>
   );
 }

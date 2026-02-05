@@ -14,18 +14,17 @@ const Layout = () => {
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
-      {/* 🔹 Sidebar fixa */}
+      {/* Sidebar fixa */}
       {!hideSidebar && (
         <Sidebar
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           isCollapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="fixed left-0 top-0 h-full z-40"
         />
       )}
 
-      {/* 🔹 Área principal */}
+      {/* Área principal */}
       <div
         className={cn(
           "flex flex-col flex-1 transition-all duration-300 overflow-hidden",
@@ -37,16 +36,15 @@ const Layout = () => {
               : "lg:ml-0")
         )}
       >
-        {/* 🔹 Header fixo */}
+        {/* Header fixo */}
         <Header
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           sidebarOpen={sidebarOpen}
           sidebarCollapsed={sidebarCollapsed}
-          className="sticky top-0 z-30"
         />
 
-        {/* 🔹 Conteúdo rolável */}
-        <main className="flex-1 overflow-y-auto p-6 bg-[#f9fafb]">
+        {/* Conteúdo rolável — sem padding/borda/fundo claro */}
+        <main className="flex-1 overflow-y-auto p-0 bg-transparent min-h-0">
           <Outlet />
         </main>
       </div>

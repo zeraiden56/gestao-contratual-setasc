@@ -11,7 +11,16 @@ import Layout from "@/app/components/Layout";
 import ContratosDashboard from "@/app/modules/contratos/pages/Dashboard";
 import ContratosLista from "@/app/modules/contratos/pages/Lista";
 import ContratoDetalhes from "@/app/modules/contratos/pages/Detalhes";
-import ContratosRelatorios from "@/app/modules/contratos/pages/Relatorios"; // 🟩 novo import
+import ContratosRelatorios from "@/app/modules/contratos/pages/Relatorios";
+
+// 🔹 Contratos – Gerenciamento (NOVOS)
+import GerenciamentoContratosPage from "@/app/modules/contratos/pages/Gerenciamento";
+import GerenciamentoNovoContratoPage from "@/app/modules/contratos/pages/GerenciamentoNovo";
+import GerenciamentoDetalhesContratoPage from "@/app/modules/contratos/pages/GerenciamentoDetalhes";
+
+// 🔹 ENTREGAS
+import EntregasDashboard from "@/app/modules/entregas/pages/Dashboard";
+import EntregasDetalhes from "@/app/modules/entregas/pages/Detalhes";
 
 // 🔹 PTE
 import PTEDashboard from "@/app/modules/pte/pages/Dashboard";
@@ -26,11 +35,13 @@ import SerfamiliaDashboard from "@/app/modules/serfamilia/pages/Dashboard";
 // 🔹 Orçamento
 import OrcamentoDashboard from "@/app/modules/orcamento/pages/Dashboard";
 import OrcamentoDetalhes from "@/app/modules/orcamento/pages/Detalhes";
-import OrcamentoLista from "@/app/modules/orcamento/pages/Lista"; // 🟩 adicionada
+import OrcamentoLista from "@/app/modules/orcamento/pages/Lista";
 
 // 🔹 Gerais
 import Modulos from "@/app/modules/Modulos";
 import NotFound from "@/app/modules/NotFound";
+
+import { AdjuntaEmConstrucao } from "@/app/pages/AdjuntaEmConstrucao";
 
 const queryClient = new QueryClient();
 
@@ -52,8 +63,8 @@ const App = () => (
           }
         >
           <Routes>
-            {/* 🏁 Início direto em /modulos */}
-            <Route path="/" element={<Navigate to="/modulos" replace />} />
+            {/* 🏁 Início direto em /contratos (dashboard) */}
+            <Route path="/" element={<Navigate to="/contratos" replace />} />
 
             {/* 🧭 Layout principal (Sidebar + Header) */}
             <Route element={<Layout />}>
@@ -66,7 +77,28 @@ const App = () => (
               <Route path="/contratos/:id" element={<ContratoDetalhes />} />
               <Route
                 path="/contratos/relatorios"
-                element={<ContratosRelatorios />} // 🟩 nova rota de relatórios
+                element={<ContratosRelatorios />}
+              />
+
+              {/* 🧾 CONTRATOS – GERENCIAMENTO (NOVOS FLUXOS) */}
+              <Route
+                path="/contratos/gerenciamento"
+                element={<GerenciamentoContratosPage />}
+              />
+              <Route
+                path="/contratos/gerenciamento/novo"
+                element={<GerenciamentoNovoContratoPage />}
+              />
+              <Route
+                path="/contratos/gerenciamento/:slug"
+                element={<GerenciamentoDetalhesContratoPage />}
+              />
+
+              {/* 📦 ENTREGAS */}
+              <Route path="/entregas" element={<EntregasDashboard />} />
+              <Route
+                path="/entregas/detalhes"
+                element={<EntregasDetalhes />}
               />
 
               {/* 📘 PTE */}
@@ -82,10 +114,8 @@ const App = () => (
               {/* 💰 ORÇAMENTO */}
               <Route path="/orcamento" element={<OrcamentoDashboard />} />
               <Route path="/orcamento/:id" element={<OrcamentoDetalhes />} />
-              <Route
-                path="/orcamento/lista"
-                element={<OrcamentoLista titulo={""} grupo={""} dados={[]} />}
-              />
+              <Route path="/orcamento/lista" element={<OrcamentoLista />} />
+              <Route path="/adjuntas/:sigla" element={<AdjuntaEmConstrucao />} />
             </Route>
 
             {/* ❌ Página 404 */}

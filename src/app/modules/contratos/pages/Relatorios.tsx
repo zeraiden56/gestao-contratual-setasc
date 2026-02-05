@@ -1,5 +1,4 @@
 "use client";
-
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useContratos } from "../hooks/useContratos";
@@ -17,61 +16,41 @@ import {
   FiHome,
   FiFileText,
   FiSearch,
+  FiBarChart2,
+  FiClock,
+  FiTrendingUp,
 } from "react-icons/fi";
 
-// 🧩 Função auxiliar para extrair datas de uma string tipo "01/01/2024 a 31/12/2025"
-function extrairDatas(vigenciaStr?: string | null) {
-  if (!vigenciaStr) return { inicio: null, fim: null };
-
-  const limpa = vigenciaStr
-    .replace(/\n/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase()
-    .replace(/[àáâãäå]/g, "a");
-
-  const regex =
-    /(\d{1,2}\/\d{1,2}\/\d{2,4})\s*(?:a|ate|à)\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/i;
-  const match = limpa.match(regex);
-  if (!match) return { inicio: null, fim: null };
-
-  const [_, ini, fim] = match;
-  const [di, mi, ai] = ini.split("/").map(Number);
-  const [df, mf, af] = fim.split("/").map(Number);
-  const inicio = new Date(ai < 100 ? 2000 + ai : ai, mi - 1, di);
-  const final = new Date(af < 100 ? 2000 + af : af, mf - 1, df);
-  return { inicio, fim: final };
-}
-
-// 🔹 Formata valores em R$
 const fmtBRL = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
     v || 0
   );
 
-// 🔹 Formata data no padrão brasileiro
-const fmtData = (d?: Date | null) =>
-  d ? d.toLocaleDateString("pt-BR") : "Não informada";
+const fmtData = (d?: string | Date | null) => {
+  if (!d) return "—";
+  const data = new Date(d);
+  if (isNaN(data.getTime())) return String(d);
+  return data.toLocaleDateString("pt-BR");
+};
 
-// 🔍 Função de normalização (para busca)
-function normalizar(texto: string) {
-  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-}
+const normalizar = (texto: string) =>
+  texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
-export default function Relatorios() {
+export default function RelatoriosAvancados() {
   const { contratos, loading } = useContratos();
   const navigate = useNavigate();
   const hoje = new Date();
-
   const [busca, setBusca] = useState("");
+  const [tipoRelatorio, setTipoRelatorio] = useState<"irregularidades" | "empenhos" | "executados2025" | "avencer">("irregularidades");
 
+  // =====================================
+  // Busca simples
+  // =====================================
   const resultados = useMemo(() => {
     if (!busca.trim()) return [];
     const termos = normalizar(busca).split(/\s+/);
     return contratos.filter((c) => {
-      const texto = normalizar(
-        `${c.numero} ${c.contratada} ${c.objeto} ${c.sigadoc}`
-      );
+      const texto = normalizar(`${c.numero} ${c.contratada} ${c.objeto} ${c.sigadoc}`);
       return termos.every((t) => texto.includes(t));
     });
   }, [busca, contratos]);
@@ -80,59 +59,88 @@ export default function Relatorios() {
     if (!busca.trim()) return texto;
     const termos = normalizar(busca).split(/\s+/);
     return texto.replace(
-      new RegExp(
-        `(${termos
-          .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
-          .join("|")})`,
-        "gi"
-      ),
+      new RegExp(`(${termos.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi"),
       (m) => `<mark class="bg-yellow-200">${m}</mark>`
     );
   };
 
-  // 🔹 Identifica irregularidades
-  const irregularidades = useMemo(() => {
-    return contratos
-      .map((c) => {
-        const { inicio, fim } = extrairDatas(c.vigencia);
-        const vencido = fim && fim < hoje;
-        const diasVencido = vencido
-          ? Math.floor((hoje.getTime() - fim.getTime()) / (1000 * 60 * 60 * 24))
-          : 0;
+  // =====================================
+  // Relatórios
+  // =====================================
+  const relatorio = useMemo(() => {
+    switch (tipoRelatorio) {
+      case "irregularidades": {
+        return contratos
+          .map((c) => {
+            const fim = c.dataVencimento ? new Date(c.dataVencimento) : null;
+            const vencido = fim && fim < hoje;
+            const diasVencido = vencido ? Math.floor((hoje.getTime() - fim.getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
-        const irregular = {
-          ...c,
-          vigenciaInicio: inicio,
-          vigenciaFim: fim,
-          vencido,
-          diasVencido,
-          valorNegativo:
-            (c.valorTotal || 0) < 0 ||
-            (c.saldoUtilizado || 0) < 0 ||
-            (c.saldoEmpenhado || 0) < 0 ||
-            (c.restoEmpenhar || 0) < 0,
-          empenhoExcedente:
-            (c.saldoEmpenhado || 0) > (c.valorTotal || 0) ||
-            (c.saldoUtilizado || 0) > (c.valorTotal || 0),
-          semAditivos: vencido && (!c.aditivos || c.aditivos === 0),
-          empenhoNaoLiquidado:
-            vencido &&
-            (c.saldoEmpenhado || 0) > (c.saldoUtilizado || 0) &&
-            (c.saldoUtilizado || 0) < (c.valorTotal || 0),
-        };
+            const valorTotal = c.valorTotal || 0;
+            const empenhado = c.empenhado || 0;
+            const liquidado = c.liquidado || 0;
+            const pago = c.pago || 0;
+            const resto = c.restoEmpenhar || 0;
 
-        const houveIrregularidade =
-          irregular.valorNegativo ||
-          irregular.empenhoExcedente ||
-          irregular.vencido ||
-          irregular.semAditivos ||
-          irregular.empenhoNaoLiquidado;
+            const irregular = {
+              ...c,
+              vencido,
+              diasVencido,
+              valorNegativo: valorTotal < 0 || empenhado < 0 || liquidado < 0 || resto < 0,
+              empenhoExcedente: empenhado > valorTotal || liquidado > valorTotal || pago > valorTotal,
+              empenhoNaoLiquidado: vencido && empenhado > liquidado,
+            };
 
-        return houveIrregularidade ? irregular : null;
-      })
-      .filter(Boolean);
-  }, [contratos]);
+            const houveIrregularidade =
+              irregular.valorNegativo ||
+              irregular.empenhoExcedente ||
+              irregular.vencido ||
+              irregular.empenhoNaoLiquidado;
 
+            return houveIrregularidade ? irregular : null;
+          })
+          .filter(Boolean);
+      }
+
+      case "empenhos": {
+        return contratos
+          .filter((c) => {
+            const total = c.valorTotal || 0;
+            const empenhado = c.empenhado || 0;
+            const proporcao = total ? empenhado / total : 0;
+            return proporcao >= 1 || proporcao === 0; // totalmente empenhado ou nada empenhado
+          })
+          .map((c) => ({
+            ...c,
+            proporcao: ((c.empenhado || 0) / (c.valorTotal || 1)) * 100,
+          }));
+      }
+
+      case "executados2025": {
+        return contratos.filter((c) => {
+          const data = c.dataVencimento ? new Date(c.dataVencimento) : null;
+          const ano = data?.getFullYear();
+          return ano === 2025 && (c.pago || 0) > 0;
+        });
+      }
+
+      case "avencer": {
+        return contratos.filter((c) => {
+          const fim = c.dataVencimento ? new Date(c.dataVencimento) : null;
+          if (!fim) return false;
+          const diff = (fim.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24);
+          return diff > 0 && diff <= 90;
+        });
+      }
+
+      default:
+        return [];
+    }
+  }, [tipoRelatorio, contratos]);
+
+  // =====================================
+  // Renderização
+  // =====================================
   if (loading)
     return (
       <div className="flex justify-center items-center h-screen text-slate-500">
@@ -141,7 +149,7 @@ export default function Relatorios() {
     );
 
   return (
-    <div className="min-h-screen bg-[#f7f9fb] p-8 space-y-6">
+    <div className="min-h-screen bg-slate-50 p-8 space-y-6">
       {/* Cabeçalho */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex gap-2">
@@ -153,11 +161,43 @@ export default function Relatorios() {
           </Button>
         </div>
         <h1 className="text-2xl font-bold text-blue-700 text-center flex-1">
-          Relatório de Irregularidades
+          Relatórios de Contratos
         </h1>
       </div>
 
-      {/* 🔍 Barra de busca */}
+      {/* Tipo de relatório */}
+      <div className="flex justify-center gap-2 flex-wrap">
+        <Button
+          variant={tipoRelatorio === "irregularidades" ? "default" : "outline"}
+          onClick={() => setTipoRelatorio("irregularidades")}
+          className="flex items-center gap-2"
+        >
+          <FiAlertTriangle /> Irregularidades
+        </Button>
+        <Button
+          variant={tipoRelatorio === "empenhos" ? "default" : "outline"}
+          onClick={() => setTipoRelatorio("empenhos")}
+          className="flex items-center gap-2"
+        >
+          <FiBarChart2 /> Empenhos
+        </Button>
+        <Button
+          variant={tipoRelatorio === "executados2025" ? "default" : "outline"}
+          onClick={() => setTipoRelatorio("executados2025")}
+          className="flex items-center gap-2"
+        >
+          <FiTrendingUp /> Executados 2025
+        </Button>
+        <Button
+          variant={tipoRelatorio === "avencer" ? "default" : "outline"}
+          onClick={() => setTipoRelatorio("avencer")}
+          className="flex items-center gap-2"
+        >
+          <FiClock /> A vencer
+        </Button>
+      </div>
+
+      {/* Busca */}
       <div className="relative flex-1 max-w-3xl mx-auto mb-6">
         <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
         <Input
@@ -186,7 +226,7 @@ export default function Relatorios() {
                 <p
                   className="text-xs text-slate-600"
                   dangerouslySetInnerHTML={{
-                    __html: destaque(r.objeto),
+                    __html: destaque(r.objeto || ""),
                   }}
                 />
               </div>
@@ -195,74 +235,47 @@ export default function Relatorios() {
         )}
       </div>
 
-      {irregularidades.length === 0 ? (
-        <Card className="p-8 text-center text-slate-500">
-          Nenhuma irregularidade encontrada 🎉
-        </Card>
-      ) : (
-        <Card className="shadow-sm border border-slate-200 bg-white rounded-xl overflow-hidden">
-          <CardHeader className="bg-slate-100 px-6 py-3 border-b">
-            <CardTitle className="flex items-center gap-2 text-md font-bold text-slate-700">
-              <FiAlertTriangle className="text-red-600" />
-              Contratos com Irregularidades ({irregularidades.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
+      {/* Tabela principal */}
+      <Card className="shadow-sm border border-slate-200 bg-white rounded-xl overflow-hidden">
+        <CardHeader className="bg-slate-100 px-6 py-3 border-b">
+          <CardTitle className="flex items-center gap-2 text-md font-bold text-slate-700">
+            <FiFileText />
+            {tipoRelatorio === "irregularidades" && "Contratos com Irregularidades"}
+            {tipoRelatorio === "empenhos" && "Análise de Empenhos"}
+            {tipoRelatorio === "executados2025" && "Contratos Executados em 2025"}
+            {tipoRelatorio === "avencer" && "Contratos a Vencer"}
+            ({relatorio.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          {relatorio.length === 0 ? (
+            <p className="text-center text-slate-500 py-6">
+              Nenhum contrato encontrado.
+            </p>
+          ) : (
             <table className="w-full text-sm border-collapse">
               <thead className="bg-slate-50 border-b text-slate-700 font-semibold">
                 <tr>
-                  <th className="p-3 text-left">Nº Contrato</th>
+                  <th className="p-3 text-left">Nº</th>
                   <th className="p-3 text-left">Contratada</th>
                   <th className="p-3 text-left">Vigência</th>
                   <th className="p-3 text-left">Valor Total</th>
-                  <th className="p-3 text-left">Irregularidades</th>
+                  {tipoRelatorio === "empenhos" && <th className="p-3">%</th>}
                   <th className="p-3 text-center">Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {irregularidades.map((c: any) => (
+                {relatorio.map((c: any) => (
                   <tr key={c.id} className="border-b hover:bg-slate-50">
-                    <td className="p-3 font-semibold text-slate-800">
-                      {c.numero}
-                    </td>
+                    <td className="p-3 font-semibold text-slate-800">{c.numero}</td>
                     <td className="p-3">{c.contratada}</td>
                     <td className="p-3">
-                      {c.vigenciaInicio
-                        ? `${fmtData(c.vigenciaInicio)} — ${fmtData(
-                            c.vigenciaFim
-                          )}`
-                        : "Não informada"}
+                      {fmtData(c.dataInicio)} — {fmtData(c.dataVencimento)}
                     </td>
                     <td className="p-3">{fmtBRL(c.valorTotal)}</td>
-                    <td className="p-3">
-                      <ul className="list-disc list-inside space-y-1">
-                        {c.valorNegativo && (
-                          <li className="text-red-600">
-                            Valores negativos detectados
-                          </li>
-                        )}
-                        {c.empenhoExcedente && (
-                          <li className="text-orange-600">
-                            Empenhos acima do valor total
-                          </li>
-                        )}
-                        {c.vencido && (
-                          <li className="text-yellow-600">
-                            Contrato vencido há {c.diasVencido} dias
-                          </li>
-                        )}
-                        {c.semAditivos && (
-                          <li className="text-rose-600">
-                            Vencido e sem aditivos registrados
-                          </li>
-                        )}
-                        {c.empenhoNaoLiquidado && (
-                          <li className="text-red-600">
-                            Empenhos não liquidados após vencimento
-                          </li>
-                        )}
-                      </ul>
-                    </td>
+                    {tipoRelatorio === "empenhos" && (
+                      <td className="p-3 text-center">{c.proporcao?.toFixed(1)}%</td>
+                    )}
                     <td className="p-3 text-center">
                       <Button
                         size="sm"
@@ -270,17 +283,16 @@ export default function Relatorios() {
                         onClick={() => navigate(`/contratos/${c.id}`)}
                         className="flex items-center gap-1"
                       >
-                        <FiFileText />
-                        Detalhes
+                        <FiFileText /> Detalhes
                       </Button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

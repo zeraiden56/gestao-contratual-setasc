@@ -1,14 +1,11 @@
-import { useLocation, NavLink } from "react-router-dom";
+import { useLocation, useNavigate, NavLink } from "react-router-dom";
 import {
   FiFileText,
   FiCheckCircle,
   FiUsers,
   FiDollarSign,
   FiClipboard,
-  FiFolder,
   FiBarChart,
-  FiSettings,
-  FiHome,
   FiChevronLeft,
   FiChevronDown,
   FiChevronUp,
@@ -18,7 +15,7 @@ import { cn } from "@/app/lib/utils";
 import { useState } from "react";
 
 /* ============================================================
-   📦 Estrutura principal — módulos e submódulos
+   📦 Estrutura principal — módulos e submódulos ativos
 ============================================================ */
 const modules = [
   {
@@ -28,13 +25,14 @@ const modules = [
     accent: "bg-green-600",
     icon: FiFileText,
     routes: [
-      { name: "Dashboard", href: "/contratos", icon: FiHome },
+      { name: "Dashboard", href: "/contratos", icon: FiFileText },
+      {
+        name: "Gerenciamento",
+        href: "/contratos/gerenciamento",
+        icon: FiClipboard,
+      },
       { name: "Contratos", href: "/contratos/lista", icon: FiFileText },
       { name: "Relatórios", href: "/contratos/relatorios", icon: FiBarChart },
-      { name: "Gestão", href: "/contratos/gestao", icon: FiUsers },
-      { name: "Pagamentos", href: "/contratos/pagamentos", icon: FiDollarSign },
-      { name: "Documentos", href: "/contratos/documentos", icon: FiFolder },
-      { name: "Configurações", href: "/contratos/configuracoes", icon: FiSettings },
     ],
   },
   {
@@ -45,9 +43,7 @@ const modules = [
     icon: FiClipboard,
     routes: [
       { name: "Dashboard", href: "/pte", icon: FiClipboard },
-      { name: "Planos", href: "/pte/planos", icon: FiFileText },
       { name: "Entregas", href: "/pte/entregas", icon: FiBarChart },
-      { name: "Configurações", href: "/pte/configuracoes", icon: FiSettings },
     ],
   },
   {
@@ -57,10 +53,9 @@ const modules = [
     accent: "bg-pink-600",
     icon: FiCheckCircle,
     routes: [
-      { name: "Dashboard", href: "/entregas", icon: FiHome },
+      { name: "Dashboard", href: "/entregas", icon: FiCheckCircle },
       { name: "Programas", href: "/entregas/programas", icon: FiUsers },
       { name: "Indicadores", href: "/entregas/indicadores", icon: FiBarChart },
-      { name: "Configurações", href: "/entregas/configuracoes", icon: FiSettings },
     ],
   },
   {
@@ -72,8 +67,6 @@ const modules = [
     routes: [
       { name: "Dashboard", href: "/serfamilia", icon: FiUsers },
       { name: "Mapa", href: "/serfamilia/mapa", icon: FiCheckCircle },
-      { name: "Relatórios", href: "/serfamilia/relatorios", icon: FiBarChart },
-      { name: "Configurações", href: "/serfamilia/configuracoes", icon: FiSettings },
     ],
   },
   {
@@ -83,16 +76,33 @@ const modules = [
     accent: "bg-blue-600",
     icon: FiDollarSign,
     routes: [
-      { name: "Dashboard", href: "/orcamento", icon: FiHome },
+      { name: "Dashboard", href: "/orcamento", icon: FiDollarSign },
       { name: "Lista", href: "/orcamento/lista", icon: FiFileText },
-      { name: "Análises", href: "/orcamento/analises", icon: FiBarChart },
-      { name: "Configurações", href: "/orcamento/configuracoes", icon: FiSettings },
+    ],
+  },
+  // 🆕 NOVO MÓDULO: Adjuntas
+  {
+    key: "adjuntas",
+    title: "Adjuntas",
+    color: "text-teal-500",
+    accent: "bg-teal-600",
+    icon: FiUsers,
+    routes: [
+      { name: "SACIS", href: "/adjuntas/sacis", icon: FiUsers },
+      { name: "SAAS", href: "/adjuntas/saas", icon: FiUsers },
+      { name: "SAASCOM", href: "/adjuntas/saascom", icon: FiUsers },
+      { name: "SADH", href: "/adjuntas/sadh", icon: FiUsers },
+      { name: "SAPPEAF", href: "/adjuntas/sappeaf", icon: FiUsers },
+      { name: "PROCON", href: "/adjuntas/procon", icon: FiUsers },
+      { name: "SAADS", href: "/adjuntas/saads", icon: FiUsers },
+      { name: "SAEDPE", href: "/adjuntas/saedpe", icon: FiUsers },
+      { name: "SAPPM", href: "/adjuntas/sappm", icon: FiUsers },
     ],
   },
 ];
 
 /* ============================================================
-   🧭 Sidebar unificada
+   🧭 Sidebar unificada (sem bordas)
 ============================================================ */
 export const Sidebar = ({
   isOpen = true,
@@ -106,7 +116,16 @@ export const Sidebar = ({
   onToggleCollapse?: () => void;
 }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [openModule, setOpenModule] = useState<string | null>(null);
+
+  const safeNavigate = (path: string) => {
+    try {
+      navigate(path);
+    } catch {
+      // rota pode não existir; ignora
+    }
+  };
 
   return (
     <>
@@ -126,7 +145,7 @@ export const Sidebar = ({
         )}
       >
         {/* Header */}
-        <div className="p-4 border-b border-sidebar-border flex items-center justify-between h-14">
+        <div className="p-4 flex items-center justify-between h-14 shadow-sm">
           {!isCollapsed ? (
             <div className="flex items-center gap-3">
               <img
@@ -182,7 +201,7 @@ export const Sidebar = ({
                     setOpenModule(openModule === mod.key ? null : mod.key)
                   }
                   className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors text-sm font-medium",
+                    "w-full flex items-center justify-between px-3 py-2 rounded-md transition-colors text-sm font-medium outline-none",
                     active
                       ? `${mod.accent} text-white`
                       : "hover:bg-sidebar-accent text-sidebar-foreground/80"
@@ -205,22 +224,27 @@ export const Sidebar = ({
                 {!isCollapsed && openModule === mod.key && (
                   <div className="mt-1 ml-4 space-y-1">
                     {mod.routes.map((r) => (
-                      <NavLink
+                      <div
                         key={r.href}
-                        to={r.href}
-                        end
-                        className={({ isActive }) =>
-                          cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all",
-                            isActive
-                              ? `${mod.accent} text-white shadow-sm`
-                              : "hover:bg-sidebar-accent text-sidebar-foreground/70"
-                          )
-                        }
+                        onClick={() => safeNavigate(r.href)}
+                        className="cursor-pointer"
                       >
-                        <r.icon className="h-4 w-4 flex-shrink-0" />
-                        <span>{r.name}</span>
-                      </NavLink>
+                          <NavLink
+                            to={r.href}
+                            end
+                            className={({ isActive }) =>
+                              cn(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all outline-none",
+                                isActive
+                                  ? `${mod.accent} text-white shadow-sm`
+                                  : "hover:bg-sidebar-accent text-sidebar-foreground/70"
+                              )
+                            }
+                          >
+                            <r.icon className="h-4 w-4 flex-shrink-0" />
+                            <span>{r.name}</span>
+                          </NavLink>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -229,8 +253,8 @@ export const Sidebar = ({
           })}
         </nav>
 
-        {/* Rodapé (versão apenas) */}
-        <div className="p-4 border-t border-sidebar-border">
+        {/* Rodapé */}
+        <div className="p-4">
           <p
             className={cn(
               "text-xs text-sidebar-foreground/50",

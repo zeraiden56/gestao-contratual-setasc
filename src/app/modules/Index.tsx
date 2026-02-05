@@ -13,16 +13,17 @@ const Index = () => {
   }, [navigate]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-700 to-indigo-500">
-      <div className="w-full max-w-md text-center">
-        <img src="/logo_helium.png" alt="Helium" className="h-20 mx-auto mb-6 drop-shadow-lg" />
-        <h1 className="text-4xl font-bold text-white">Helium</h1>
-        <p className="text-white/70 mb-8">Sistema de Gestão Governamental</p>
-
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 border-4 border-white/40 border-t-white rounded-full animate-spin"></div>
-          <p className="text-white/80 animate-pulse">Inicializando...</p>
-        </div>
+  <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-indigo-600 via-blue-600 to-cyan-500 text-white">
+      <img
+        src="/logo_helium.png"
+        alt="Helium"
+        className="h-24 w-auto mb-8 drop-shadow-xl animate-fade-in"
+      />
+      <h1 className="text-4xl font-bold tracking-tight mb-2">Sistema Helium</h1>
+      <p className="text-white/80 mb-10 text-sm">Gestão Integrada — Governo de Mato Grosso</p>
+      <div className="flex flex-col items-center">
+        <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin mb-3"></div>
+        <p className="text-white/70 text-sm animate-pulse">Inicializando módulos...</p>
       </div>
     </div>
   );

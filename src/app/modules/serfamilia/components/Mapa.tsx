@@ -1,6 +1,7 @@
+// src/app/modules/serfamilia/components/Mapa.tsx
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { MapContainer, GeoJSON } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,10 +10,30 @@ interface Props {
   onSelectCidade: (nome: string) => void;
   dados: any;
   cidadeSelecionada: string;
-  anoSelecionado: string;
+  anoSelecionado: string; // "2023" | "2024" | "2025" | "Todos"
 }
 
-export function Mapa({ onSelectCidade, dados, cidadeSelecionada, anoSelecionado }: Props) {
+/* Utils de formatação e normalização (iguais ao dashboard) */
+const formatCurrency = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const formatNumber = (v: number) => v.toLocaleString("pt-BR");
+
+const norm = (s: string) =>
+  (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+
+const sameCity = (a?: string, b?: string) =>
+  !!a && !!b && norm(a) === norm(b);
+
+export function Mapa({
+  onSelectCidade,
+  dados,
+  cidadeSelecionada,
+  anoSelecionado,
+}: Props) {
   const [geojson, setGeojson] = useState<any>(null);
   const geoJsonRef = useRef<L.GeoJSON>(null);
 
@@ -23,84 +44,147 @@ export function Mapa({ onSelectCidade, dados, cidadeSelecionada, anoSelecionado 
       .catch((err) => console.error("Erro ao carregar o GeoJSON:", err));
   }, []);
 
-  // Função de estilo dinâmico
-  const getStyle = (nome: string) => {
-    const isSelected =
-      cidadeSelecionada &&
-      nome.toLowerCase() === cidadeSelecionada.toLowerCase();
-
-    return {
-      color: isSelected ? "#1d4ed8" : "#3388ff",
-      weight: isSelected ? 2.5 : 1,
-      fillColor: isSelected ? "#93c5fd" : "#60a5fa",
-      fillOpacity: isSelected ? 0.6 : 0.3,
-      cursor: "pointer",
-    };
+  const baseStyle: L.PathOptions = {
+    color: "#cbd5e1", // stroke cinza claro
+    weight: 1.2,
+    fillColor: "#f8fafc", // quase branco
+    fillOpacity: 0.6,
   };
 
-  // Tooltip e interações
+  function styleFor(nome: string): L.PathOptions {
+    const sel =
+      cidadeSelecionada &&
+      sameCity(nome, cidadeSelecionada);
+
+    return sel
+      ? {
+          color: "#ea580c",
+          weight: 2.2,
+          fillColor: "#fb923c",
+          fillOpacity: 0.85,
+        }
+      : baseStyle;
+  }
+
+  const tooltipOptions: L.TooltipOptions = {
+    direction: "top",
+    opacity: 0.95,
+    sticky: true,
+  };
+
+  /** Calcula os valores e monta o HTML do tooltip (com ícones SVG) */
+  const buildTooltipHtml = useCallback(
+    (nome: string) => {
+      const lista = (dados?.cidades || []) as any[];
+
+      const dadosCidade = lista.filter((d) => {
+        const condCidade = sameCity(d.cidade, nome);
+        const condAno =
+          !anoSelecionado || anoSelecionado === "Todos"
+            ? true
+            : String(d.ano) === String(anoSelecionado);
+        return condCidade && condAno;
+      });
+
+      const totalCartoes = dadosCidade.reduce(
+        (s, x) => s + (x.quantidade || 0),
+        0
+      );
+      const totalInvest = dadosCidade.reduce(
+        (s, x) => s + (x.valor || 0),
+        0
+      );
+
+      const cartoesStr =
+        totalCartoes > 0 ? formatNumber(totalCartoes) : "—";
+      const investStr =
+        totalInvest > 0 ? formatCurrency(totalInvest) : "—";
+
+      // SVGs no estilo Lucide (credit-card + cash)
+      const cartaoSvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="2" y1="10" x2="22" y2="10"></line>
+        </svg>
+      `;
+      const moneySvg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="8"></circle>
+          <path d="M12 8v8"></path>
+          <path d="M9.5 10.5a2.5 2.5 0 0 1 2.5-2.5h1a2.5 2.5 0 0 1 0 5h-1a2.5 2.5 0 0 0 0 5h3.5"></path>
+        </svg>
+      `;
+
+      return `
+        <div style="font-size:11px; color:#0f172a;">
+          <div style="font-weight:600;margin-bottom:2px;">${nome}</div>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:2px;">
+            ${cartaoSvg}
+            <span>${cartoesStr} cartões</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:4px;margin-top:2px;">
+            ${moneySvg}
+            <span>${investStr}</span>
+          </div>
+        </div>
+      `;
+    },
+    [dados, anoSelecionado]
+  );
+
   const onEachFeature = (feature: any, layer: L.Layer) => {
-    const nome = feature.properties.NM_MUN || feature.properties.name;
+    const nome =
+      feature?.properties?.NM_MUN || feature?.properties?.name;
     if (!nome) return;
 
-    // Filtrar dados conforme cidade e ano
-    const dadosCidade = dados.cidades.filter((d: any) => {
-      const condCidade = d.cidade.toLowerCase() === nome.toLowerCase();
-      const condAno = anoSelecionado ? d.ano === anoSelecionado : true;
-      return condCidade && condAno;
+    const html = buildTooltipHtml(nome);
+    (layer as L.Path).bindTooltip(html, tooltipOptions);
+
+    // cursor pointer via DOM
+    (layer as any).on("add", () => {
+      const el = (layer as any).getElement?.();
+      if (el) el.style.cursor = "pointer";
     });
 
-    const totalCartoes = dadosCidade.reduce(
-      (s: number, x: any) => s + (x.quantidade || 0),
-      0
-    );
-    const totalInvest = dadosCidade.reduce(
-      (s: number, x: any) => s + (x.valor || 0),
-      0
-    );
-
-    // Tooltip HTML
-    const tooltip = `<b>${nome}</b><br/>
-      Cartões: ${totalCartoes.toLocaleString("pt-BR")}<br/>
-      Investimento: R$ ${totalInvest.toLocaleString("pt-BR")}`;
-
-    (layer as L.Path).bindTooltip(tooltip, {
-      direction: "center",
-      opacity: 0.9,
-      sticky: true,
-    });
-
-    // Eventos
     layer.on({
       click: () => onSelectCidade(nome),
       mouseover: (e: any) => {
-        const target = e.target;
-        target.setStyle({
-          fillOpacity: 0.6,
-          color: "#1d4ed8",
-          weight: 2,
-        });
-        target.bringToFront();
+        e.target.setStyle({ color: "#ea580c", weight: 2.0 });
+        e.target.bringToFront();
       },
       mouseout: (e: any) => {
-        const target = e.target;
-        target.setStyle(getStyle(nome));
+        e.target.setStyle(styleFor(nome));
       },
     });
   };
 
-  // Atualiza estilos quando muda cidade selecionada ou ano
+  // Reestiliza e atualiza tooltips sempre que seleção/ano/dados mudarem
   useEffect(() => {
     if (!geoJsonRef.current) return;
+
     geoJsonRef.current.eachLayer((layer: any) => {
-      const nome = layer.feature.properties.NM_MUN || layer.feature.properties.name;
-      layer.setStyle(getStyle(nome));
+      const nome =
+        layer?.feature?.properties?.NM_MUN ||
+        layer?.feature?.properties?.name;
+      if (!nome) return;
+
+      // estilo (selecionado x normal)
+      layer.setStyle(styleFor(nome));
+
+      // tooltip com dados atualizados
+      const html = buildTooltipHtml(nome);
+      const tooltip = layer.getTooltip?.();
+      if (tooltip) {
+        tooltip.setContent(html);
+      } else {
+        (layer as L.Path).bindTooltip(html, tooltipOptions);
+      }
     });
-  }, [cidadeSelecionada, anoSelecionado]);
+  }, [cidadeSelecionada, anoSelecionado, dados, buildTooltipHtml]);
 
   if (!geojson) {
     return (
-      <div className="flex items-center justify-center h-[320px] w-[350px] bg-blue-50 text-blue-800 rounded">
+      <div className="h-full w-full flex items-center justify-center text-slate-400">
         Carregando mapa...
       </div>
     );
@@ -114,19 +198,20 @@ export function Mapa({ onSelectCidade, dados, cidadeSelecionada, anoSelecionado 
       dragging={false}
       doubleClickZoom={false}
       scrollWheelZoom={false}
+      attributionControl={false}
       style={{
-        height: 360,
-        width: 400,
-        backgroundColor: "#e0f2fe",
-        borderRadius: "12px",
-        border: "1px solid #bfdbfe",
+        height: "100%", // respeita o tamanho do card pai
+        width: "100%",
+        backgroundColor: "transparent",
       }}
     >
       <GeoJSON
         ref={geoJsonRef}
         data={geojson}
         style={(feature) =>
-          getStyle(feature?.properties?.NM_MUN || feature?.properties?.name)
+          styleFor(
+            feature?.properties?.NM_MUN || feature?.properties?.name
+          )
         }
         onEachFeature={onEachFeature}
       />

@@ -1,512 +1,565 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useContratos } from "../hooks/useContratos";
-import { Card, CardHeader, CardTitle, CardContent } from "../../../components/ui/card";
+import { useDebounce } from "use-debounce";
+import { useContratos } from "@/app/modules/contratos/hooks/useContratos";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 import { Input } from "../../../components/ui/input";
 import { Progress } from "../../../components/ui/progress";
 import {
   ArrowLeft,
   Home,
-  ChevronDown,
-  ChevronUp,
   Search,
-  RefreshCcw,
-  Layers,
-  Package,
-  Info,
-  Clock,
-  FileText,
-  MapPin,
+  ChevronUp,
+  ChevronDown,
+  Link as LinkIcon,
+  Calendar,
   DollarSign,
+  FileText,
+  Layers,
+  Users,
+  Calculator,
+  Info,
+  Hash,
+  FileSpreadsheet,
+  ClipboardList,
+  PenLine,
+  Receipt,
+  Package,
+  Bookmark,
 } from "lucide-react";
 
-// ============================================
-// HELPERS DE FORMATAÇÃO
-// ============================================
-const fmtBRL = (v?: number | null) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(v || 0);
+/* =========================
+   Utils
+========================= */
+const fmtBRL = (valor?: number | string | null) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+    Number(valor) || 0
+  );
 
-const fmtData = (d?: string | null) => {
-  if (!d) return "Não informada";
-  const data = new Date(d);
-  if (isNaN(data.getTime())) return d;
-  return data.toLocaleDateString("pt-BR");
+const fmtData = (valor?: string) => {
+  if (!valor) return "—";
+  const d = new Date(valor);
+  return isNaN(d.getTime()) ? valor : d.toLocaleDateString("pt-BR");
 };
 
-// ============================================
-// COMPONENTE PRINCIPAL
-// ============================================
+const fmt = (v: any) => {
+  if (v === null || v === undefined || v === "") return "—";
+  if (!isNaN(Number(v)) && Number(v) > 0.009) return fmtBRL(v);
+  if (String(v).match(/^\d{4}-\d{2}-\d{2}/)) return fmtData(v);
+  return v;
+};
+
+const normalizar = (texto: string) =>
+  texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+const destacar = (texto: string, termo: string) => {
+  if (!termo) return texto;
+  const regex = new RegExp(`(${termo})`, "gi");
+  return texto.replace(regex, `<mark class="bg-yellow-200">$1</mark>`);
+};
+
+const getIcon = (nome: string) => {
+  const n = nome.toLowerCase();
+  if (n.includes("tipo")) return <PenLine size={14} />;
+  if (n.includes("nº") || n.includes("numero")) return <Hash size={14} />;
+  if (n.includes("data")) return <Calendar size={14} />;
+  if (n.includes("vigência") || n.includes("vigencia")) return <Calendar size={14} />;
+  if (n.includes("valor")) return <DollarSign size={14} />;
+  if (n.includes("processo")) return <FileSpreadsheet size={14} />;
+  if (n.includes("observa")) return <FileText size={14} />;
+  if (n.includes("nota")) return <Receipt size={14} />;
+  if (n.includes("setor")) return <Users size={14} />;
+  if (n.includes("item")) return <Bookmark size={14} />;
+  if (n.includes("descr")) return <Package size={14} />;
+  if (n.includes("unidade")) return <Layers size={14} />;
+  if (n.includes("quant")) return <ClipboardList size={14} />;
+  return <Layers size={14} />;
+};
+
+const colunas: Record<string, string[]> = {
+  Aditivos: [
+    "Tipo",
+    "Nº Aditivo",
+    "Data Assinatura",
+    "Nova Vigência Final",
+    "Valor Novo",
+    "Observações",
+    "Processo de Prorrogação",
+  ],
+  Lotes: [
+    "Nº Lote",
+    "Item",
+    "Descrição",
+    "Unidade",
+    "Quantidade",
+    "Valor Unitário",
+    "Valor Total",
+  ],
+  Empenhos: [
+    "Nº Empenho",
+    "Data",
+    "Dotação",
+    "Valor Empenhado",
+    "Valor Liquidado",
+    "Valor Estornado",
+    "Saldo",
+    "Observações",
+  ],
+  Pagamentos: [
+    "Nº Ordem de Fornecimento",
+    "Data",
+    "Processo Pagamento",
+    "Nota Fiscal",
+    "Setor Demandante",
+    "Empenho",
+    "Valor",
+    "Observações",
+  ],
+};
+
+const somaTotais = (dados: any[], campos: string[]) => {
+  const total: Record<string, number> = {};
+  campos.forEach((c) => (total[c] = 0));
+  dados.forEach((linha) => {
+    campos.forEach((c) => {
+      const v = linha?.[c];
+      if (!isNaN(Number(v)) && v !== null && v !== "") total[c] += Number(v);
+    });
+  });
+  return total;
+};
+
+/* =========================
+   Detalhes
+========================= */
 export default function DetalhesContrato() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { contratos, loading } = useContratos();
-  
-  // Estado
-  const [busca, setBusca] = useState("");
+
+  // hook: índice + fetch de detalhe
+  const { contratos, loading, getContratoDetalhado } = useContratos();
+
+  // busca dropdown
+  const [query, setQuery] = useState("");
+  const [debouncedQuery] = useDebounce(query, 250);
+  const [filtrados, setFiltrados] = useState<any[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // detalhe remoto
+  const [detalheRemoto, setDetalheRemoto] = useState<any | null>(null);
+  const [carregandoDetalhe, setCarregandoDetalhe] = useState(false);
+
+  // seções abertas
   const [abertas, setAbertas] = useState<Record<string, boolean>>({
-    "Informações Gerais": true,
-    "Lotes": true,
-    "Prorrogações e Reajustes": true,
-    "Empenhos": true,
-    "Pagamentos": true,
+    Gerais: true,
+    Aditivos: true,
+    Lotes: true,
+    Empenhos: true,
+    Pagamentos: true,
   });
 
-  // Busca de contratos
-  const resultados = useMemo(() => {
-    if (!busca.trim()) return [];
-    const termos = busca.toLowerCase().split(/\s+/);
-    return contratos.filter((c) =>
+  // contrato alvo
+  const contratoSlug = decodeURIComponent(id || "");
+  const contrato = useMemo(
+    () =>
+      contratos.find((c) => c.slug === contratoSlug) ||
+      contratos.find((c) => c.numero === contratoSlug) ||
+      contratos.find((c) => c.id === contratoSlug) ||
+      null,
+    [contratos, contratoSlug]
+  );
+
+  // identificador preferido para fetch do detalhe (estável)
+  const identMemo = useMemo(() => {
+    if (!contrato) return null;
+    const nomeAba = (contrato as any).nomeAba?.trim();
+    return nomeAba ? nomeAba : `${contrato.numero} - ${contrato.contratada}`;
+  }, [contrato?.numero, contrato?.contratada, (contrato as any)?.nomeAba]);
+
+  // estabiliza a função e evita refetch do mesmo ident
+  const getDetRef = useRef(getContratoDetalhado);
+  useEffect(() => {
+    getDetRef.current = getContratoDetalhado;
+  }, [getContratoDetalhado]);
+
+  const lastIdentRef = useRef<string | null>(null);
+
+  // carrega detalhe remoto sem loop
+  useEffect(() => {
+    if (!identMemo) return;
+    if (lastIdentRef.current === identMemo) return; // já buscou esse
+
+    let cancelado = false;
+    setCarregandoDetalhe(true);
+
+    (async () => {
+      try {
+        const det = await getDetRef.current(identMemo);
+        if (!cancelado) {
+          setDetalheRemoto(det || null);
+          lastIdentRef.current = identMemo;
+        }
+      } catch (e) {
+        if (!cancelado) setDetalheRemoto(null);
+        console.error("Falha ao carregar detalhe remoto:", e);
+      } finally {
+        if (!cancelado) setCarregandoDetalhe(false);
+      }
+    })();
+
+    return () => {
+      cancelado = true;
+    };
+  }, [identMemo]);
+
+  // busca global dropdown
+  useEffect(() => {
+    if (!debouncedQuery.trim()) {
+      setFiltrados([]);
+      return;
+    }
+    const termos = normalizar(debouncedQuery).split(/\s+/).filter(Boolean);
+    const results = contratos.filter((c) =>
       termos.every((t) =>
-        `${c.numero} ${c.contratada} ${c.objeto} ${c.sigadoc}`
-          .toLowerCase()
-          .includes(t)
+        normalizar(`${c.numero} ${c.contratada} ${c.objeto || ""}`).includes(t)
       )
     );
-  }, [busca, contratos]);
+    setFiltrados(results.slice(0, 8));
+  }, [debouncedQuery, contratos]);
 
-  // Contrato atual
-  const contrato = contratos.find((c) => c.id === Number(id));
+  // fechar dropdown ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  // ============================================
-  // ESTADOS DE CARREGAMENTO E ERRO
-  // ============================================
-  if (loading) {
+  if (loading)
     return (
-      <div className="flex justify-center items-center h-screen text-muted-foreground">
+      <div className="flex justify-center items-center h-screen text-slate-500">
         Carregando...
       </div>
     );
-  }
-
-  if (!contrato) {
+  if (!contrato)
     return (
-      <div className="p-6 text-center text-muted-foreground">
+      <div className="p-6 text-center text-slate-500">
         Contrato não encontrado.
       </div>
     );
-  }
 
-  // ============================================
-  // FUNÇÕES AUXILIARES
-  // ============================================
-  const toggleSecao = (nome: string) =>
-    setAbertas((p) => ({ ...p, [nome]: !p[nome] }));
+  // merge detalhe remoto com local
+  const detalhes =
+    detalheRemoto?.DETALHES ||
+    detalheRemoto?.detalhes ||
+    contrato.detalhes ||
+    {};
 
-  const linkSigadoc = contrato.sigadoc
-    ? `https://www.sigadoc.mt.gov.br/sigaex/app/expediente/doc/exibir?sigla=${encodeURIComponent(
-        contrato.sigadoc.trim()
-      )}`
-    : null;
+  const cab =
+    detalhes.CABECALHO ||
+    detalhes.Cabecalho ||
+    contrato.detalhes?.CABECALHO ||
+    {};
 
-  // ============================================
-  // DADOS PROCESSADOS
-  // ============================================
-  const camposGerais = [
-    { label: "Gestor", valor: contrato.gestor },
-    { label: "Fiscal", valor: contrato.fiscal },
-    { label: "Suplente", valor: contrato.suplente },
-    { label: "Data de Início", valor: fmtData(contrato.dataInicio) },
-    { label: "Data de Vencimento", valor: fmtData(contrato.dataVencimento) },
-  ].filter((c) => c.valor && c.valor !== "-");
+  const valorTotal =
+    Number(cab["Valor Inicial"]) ||
+    Number(contrato.valorTotal || 0);
 
-  const lotesLimpos = (contrato.lotes || []).filter(
-    (l) => l.numero || l.descricao || l.valorTotal
-  );
+  const valorEmpenhado = Number(contrato.empenhado || 0);
+  const valorGasto = Number(cab["Valor Gasto"] || contrato.pago || 0);
+  const saldoAtual =
+    Number(cab["Saldo Atual"]) ||
+    Number(contrato.restoEmpenhar || 0);
 
-  const empenhosLimpos = (contrato.empenhos || []).filter(
-    (e) => e.numero || e.valorEmpenhado
-  );
+  const processo = (cab["Processo"] || contrato.sigadoc || "")
+    .toString()
+    .trim();
 
-  const aditivosLimpos = (contrato.aditivosDetalhe || []).filter(
-    (a) => a.tipo || a.valorNovo
-  );
+  const toggle = (sec: string) =>
+    setAbertas((p) => ({ ...p, [sec]: !p[sec] }));
 
-  const pagamentosLimpos = (contrato.pagamentos || []).filter(
-    (p) => p.valor || p.processo
-  );
+  const aditivos = detalhes.ADITIVOS || detalhes.Aditivos || [];
+  const lotes = detalhes.LOTES || detalhes.Lotes || [];
+  const empenhos = detalhes.EMPENHOS || detalhes.Empenhos || [];
+  const pagamentos = detalhes.PAGAMENTOS || detalhes.Pagamentos || [];
 
-  const cardsFinanceiros = [
-    { label: "Valor Inicial", valor: contrato.valorTotal, cor: "bg-green-600" },
-    { label: "Total Empenhado", valor: contrato.empenhado, cor: "bg-indigo-600" },
-    { label: "Total Estornado", valor: contrato.extornado, cor: "bg-rose-600" },
-    { label: "Total Liquidado", valor: contrato.liquidado, cor: "bg-orange-500" },
-    { label: "Total Pago", valor: contrato.pago, cor: "bg-sky-600" },
-    { label: "Total Aditivos", valor: contrato.aditivos, cor: "bg-blue-700" },
-    { label: "Saldo Atual", valor: contrato.restoEmpenhar, cor: "bg-emerald-600" },
+  const secoes = [
+    { nome: "Aditivos", dados: aditivos },
+    { nome: "Lotes", dados: lotes },
+    { nome: "Empenhos", dados: empenhos },
+    { nome: "Pagamentos", dados: pagamentos },
   ];
 
-  // ============================================
-  // RENDER
-  // ============================================
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-8 space-y-6">
-      {/* ========== NAVEGAÇÃO E BUSCA ========== */}
-      <header className="space-y-4">
-        <div className="flex justify-between items-center gap-4">
-          {/* Botões de navegação */}
+    <div
+      className="min-h-screen relative overflow-hidden p-6"
+      style={{
+        backgroundImage: "url('/brasao-estado-mt.jpeg')",
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "center",
+        backgroundSize: "cover",
+        backgroundAttachment: "fixed",
+      }}
+    >
+      {/* overlay igual ao dashboard */}
+      <div className="absolute inset-0 bg-gradient-to-b from-blue-50/90 via-white/95 to-white pointer-events-none" />
+      <div className="relative z-10 space-y-6">
+        {/* Navegação + busca */}
+        <div className="flex justify-between items-center relative">
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate(-1)}
-              aria-label="Voltar"
-            >
-              <ArrowLeft className="h-4 w-4" />
+            <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
+              <ArrowLeft />
             </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => navigate("/")}
-              aria-label="Ir para home"
-            >
-              <Home className="h-4 w-4" />
+            <Button variant="outline" size="icon" onClick={() => navigate("/contratos")}>
+              <Home />
             </Button>
           </div>
 
-          {/* Barra de busca */}
-          <div className="relative flex-1 max-w-3xl">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          {/* Busca inteligente dropdown */}
+          <div className="relative w-96" ref={dropdownRef}>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <Input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar contrato por número, contratada ou objeto..."
-              className="pl-10 rounded-full"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setShowDropdown(true);
+              }}
+              placeholder="Buscar contrato..."
+              className="pl-10 rounded-full bg-white"
+              onFocus={() => setShowDropdown(true)}
             />
-            
-            {/* Resultados da busca */}
-            {busca && resultados.length > 0 && (
-              <div className="absolute top-full mt-2 left-0 right-0 bg-card border rounded-lg shadow-lg max-h-60 overflow-y-auto z-50">
-                {resultados.map((r) => (
-                  <button
-                    key={r.id}
-                    onClick={() => {
-                      navigate(`/contratos/${r.id}`);
-                      setBusca("");
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-accent transition-colors border-b last:border-b-0"
-                  >
-                    <p className="font-medium text-sm">
-                      {r.numero} — {r.contratada}
-                    </p>
-                    <p className="text-xs text-muted-foreground line-clamp-1">
-                      {r.objeto}
-                    </p>
-                  </button>
-                ))}
+            {showDropdown && query && (
+              <div className="absolute top-11 left-0 right-0 bg-white border rounded-xl shadow-lg z-50 max-h-72 overflow-y-auto">
+                {filtrados.length > 0 ? (
+                  filtrados.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => {
+                        navigate(`/contratos/${c.slug}`);
+                        setQuery("");
+                        setShowDropdown(false);
+                      }}
+                      className="p-3 border-b last:border-none hover:bg-blue-50 cursor-pointer"
+                    >
+                      <p
+                        className="font-medium text-slate-800 text-sm"
+                        dangerouslySetInnerHTML={{
+                          __html: destacar(`${c.numero ?? ""} — ${c.contratada ?? ""}`, debouncedQuery),
+                        }}
+                      />
+                      <p
+                        className="text-xs text-slate-600"
+                        dangerouslySetInnerHTML={{
+                          __html: destacar(c.objeto || "", debouncedQuery),
+                        }}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-3 text-center text-slate-500 text-sm">
+                    Nenhum contrato encontrado.
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
 
-        {/* ========== CABEÇALHO DO CONTRATO ========== */}
-        <div className="text-center space-y-2">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
-            {contrato.numero} — {contrato.contratada}
+        {/* Cabeçalho */}
+        <header className="text-center space-y-2">
+          <h1 className="text-2xl font-bold text-slate-800">
+            {cab["Código do Contrato"] || contrato.numero}
           </h1>
-          <div className="flex items-center justify-center flex-wrap gap-4 sm:gap-6 text-sm text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <FileText className="h-4 w-4 text-primary" /> {contrato.tipo}
-            </span>
-            <span className="flex items-center gap-1">
-              <MapPin className="h-4 w-4 text-primary" /> {contrato.unidade}
-            </span>
-            <span className="flex items-center gap-1">
-              <Clock className="h-4 w-4 text-primary" />
-              {fmtData(contrato.dataInicio)} — {fmtData(contrato.dataVencimento)}
+          <p className="text-lg font-medium text-slate-600">
+            {cab["Empresa"] || contrato.contratada}
+          </p>
+
+          {processo && (
+            <a
+              href={`https://www.sigadoc.mt.gov.br/sigaex/app/expediente/doc/exibir?sigla=${encodeURIComponent(
+                processo
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 text-sm hover:underline inline-flex items-center gap-1"
+            >
+              <LinkIcon size={14} /> Processo SIGADOC: {processo}
+            </a>
+          )}
+
+          <div className="flex justify-center items-center gap-3 text-sm text-slate-600">
+            <Calendar size={14} />
+            <span>
+              {fmtData(cab["Data de Início"] || contrato.dataInicio)} —{" "}
+              {fmtData(cab["Data de Vencimento"] || contrato.dataVencimento)}
             </span>
           </div>
-        </div>
-      </header>
 
-      {/* ========== CARDS FINANCEIROS ========== */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {cardsFinanceiros.map((card) => {
-          const perc = contrato.valorTotal
-            ? Math.min((card.valor / contrato.valorTotal) * 100, 100)
-            : 0;
-          
-          return (
+          {carregandoDetalhe && (
+            <p className="text-xs text-slate-400 mt-1">Carregando dados detalhados…</p>
+          )}
+        </header>
+
+        {/* Cards principais */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
+          {[
+            {
+              label: "Valor Total",
+              valor: valorTotal,
+              cor: "from-green-500 to-emerald-600",
+              icon: <DollarSign size={16} />,
+              pct: 100,
+            },
+            {
+              label: "Empenhado",
+              valor: valorEmpenhado,
+              cor: "from-indigo-500 to-purple-600",
+              icon: <Layers size={16} />,
+              pct: valorTotal ? (valorEmpenhado / valorTotal) * 100 : 0,
+            },
+            {
+              label: "Liquidado",
+              valor: valorGasto,
+              cor: "from-orange-400 to-orange-600",
+              icon: <Users size={16} />,
+              pct: valorTotal ? (valorGasto / valorTotal) * 100 : 0,
+            },
+            {
+              label: "Saldo Atual",
+              valor: saldoAtual,
+              cor: "from-cyan-500 to-sky-600",
+              icon: <Calculator size={16} />,
+              pct: valorTotal ? (saldoAtual / valorTotal) * 100 : 0,
+            },
+          ].map((c) => (
             <Card
-              key={card.label}
-              className={`${card.cor} text-white border-0 shadow-md overflow-hidden`}
+              key={c.label}
+              className={`rounded-2xl shadow-md bg-gradient-to-r ${c.cor} text-white`}
             >
-              <CardContent className="p-4 space-y-2">
-                <CardTitle className="text-sm font-semibold opacity-90">
-                  {card.label}
-                </CardTitle>
-                <p className="text-xl sm:text-2xl font-bold">
-                  {fmtBRL(card.valor)}
-                </p>
-                <Progress
-                  value={perc}
-                  className="h-1.5 bg-white/20"
-                />
+              <CardContent className="p-5">
+                <div className="flex items-center justify-between text-sm font-semibold">
+                  <div className="flex items-center gap-2">
+                    {c.icon} {c.label}
+                  </div>
+                  <span className="text-xs opacity-80">
+                    {isFinite(c.pct) ? `${c.pct.toFixed(1)}%` : "0%"}
+                  </span>
+                </div>
+                <p className="text-2xl font-bold">{fmtBRL(c.valor)}</p>
+                <Progress value={c.pct} className="h-1 bg-white/40" />
               </CardContent>
+            </Card>
+          ))}
+        </section>
+
+        {/* Informações Gerais */}
+        <Card className="bg-white/90 backdrop-blur border border-slate-200 shadow-sm">
+          <CardHeader
+            onClick={() => toggle("Gerais")}
+            className="cursor-pointer flex justify-between items-center hover:bg-slate-50/70"
+          >
+            <CardTitle className="flex gap-2 items-center text-slate-800">
+              <Info size={18} className="text-blue-600" /> Informações Gerais
+            </CardTitle>
+            {abertas.Gerais ? <ChevronUp /> : <ChevronDown />}
+          </CardHeader>
+          {abertas.Gerais && (
+            <CardContent className="space-y-2 text-slate-700">
+              <p>{cab["Objeto"] || contrato.objeto || "—"}</p>
+              <div className="grid sm:grid-cols-3 gap-3 text-sm mt-3">
+                <div className="p-3 bg-emerald-50 border rounded-lg">
+                  <b>Gestor:</b> {cab["Gestor"] || "—"}
+                </div>
+                <div className="p-3 bg-blue-50 border rounded-lg">
+                  <b>Fiscal:</b> {cab["Fiscal"] || "—"}
+                </div>
+                <div className="p-3 bg-amber-50 border rounded-lg">
+                  <b>Suplente:</b> {cab["Suplente"] || "—"}
+                </div>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Tabelas: Aditivos, Lotes, Empenhos, Pagamentos */}
+        {secoes.map(({ nome, dados }) => {
+          const cols = colunas[nome];
+          const totais = somaTotais(dados, cols);
+          return (
+            <Card key={nome} className="bg-white/90 backdrop-blur border border-slate-200 shadow-sm">
+              <CardHeader
+                onClick={() => toggle(nome)}
+                className="cursor-pointer flex justify-between items-center hover:bg-slate-50/70"
+              >
+                <CardTitle className="flex gap-2 items-center text-slate-800">
+                  <Layers size={18} className="text-slate-700" /> {nome}{" "}
+                  <span className="text-slate-400 text-sm font-normal">
+                    ({Array.isArray(dados) ? dados.length : 0})
+                  </span>
+                </CardTitle>
+                {abertas[nome] ? <ChevronUp /> : <ChevronDown />}
+              </CardHeader>
+              {abertas[nome] && (
+                <CardContent>
+                  {Array.isArray(dados) && dados.length ? (
+                    <div className="overflow-x-auto max-h-[400px] overflow-y-auto rounded-lg border">
+                      <table className="w-full text-sm border-collapse">
+                        <thead className="bg-slate-100 border-b sticky top-0">
+                          <tr>
+                            {cols.map((c) => (
+                              <th key={c} className="p-2 text-left font-semibold text-slate-700">
+                                <div className="flex items-center gap-1">
+                                  {getIcon(c)} {c}
+                                </div>
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dados.map((linha: any, i: number) => (
+                            <tr
+                              key={i}
+                              className={`${i % 2 ? "bg-slate-50" : "bg-white"} border-t`}
+                            >
+                              {cols.map((c) => (
+                                <td key={c} className="p-2 text-slate-800 align-top">
+                                  {fmt(linha?.[c])}
+                                </td>
+                              ))}
+                            </tr>
+                          ))}
+                          <tr className="bg-blue-50 font-semibold border-t border-blue-200">
+                            {cols.map((c) => (
+                              <td key={c} className="p-2 text-blue-800">
+                                {totais[c] ? fmtBRL(totais[c]) : ""}
+                              </td>
+                            ))}
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 italic text-sm">
+                      Nenhum registro em {nome.toLowerCase()}.
+                    </p>
+                  )}
+                </CardContent>
+              )}
             </Card>
           );
         })}
-      </section>
-
-      {/* ========== SEÇÕES DETALHADAS ========== */}
-      <section className="space-y-4">
-        {/* Informações Gerais */}
-        <Card className="shadow-sm">
-          <CardHeader
-            onClick={() => toggleSecao("Informações Gerais")}
-            className="flex flex-row justify-between items-center cursor-pointer hover:bg-accent/50 transition-colors"
-          >
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Info className="h-4 w-4" /> Informações Gerais
-            </CardTitle>
-            {abertas["Informações Gerais"] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </CardHeader>
-          
-          {abertas["Informações Gerais"] && (
-            <CardContent className="space-y-4">
-              <div>
-                <strong className="text-sm text-muted-foreground">Objeto:</strong>
-                <p className="mt-1 leading-relaxed">{contrato.objeto}</p>
-              </div>
-              
-              <div>
-                <strong className="text-sm text-muted-foreground">Nº SIGADOC:</strong>
-                <p className="mt-1">
-                  {linkSigadoc ? (
-                    <a
-                      href={linkSigadoc}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      {contrato.sigadoc}
-                    </a>
-                  ) : (
-                    <span className="text-muted-foreground">Não informado</span>
-                  )}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
-                {camposGerais.map((campo, i) => (
-                  <div key={i} className="bg-muted/30 p-3 rounded-lg border">
-                    <p className="text-xs font-semibold text-muted-foreground mb-1">
-                      {campo.label}
-                    </p>
-                    <p className="text-sm font-medium">{campo.valor}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          )}
-        </Card>
-
-        {/* Lotes */}
-        <Card className="shadow-sm">
-          <CardHeader
-            onClick={() => toggleSecao("Lotes")}
-            className="flex flex-row justify-between items-center cursor-pointer hover:bg-accent/50 transition-colors"
-          >
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Package className="h-4 w-4" /> Lotes
-            </CardTitle>
-            {abertas["Lotes"] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </CardHeader>
-          
-          {abertas["Lotes"] && (
-            <CardContent>
-              {lotesLimpos.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="p-2 text-left font-semibold">Lote</th>
-                        <th className="p-2 text-left font-semibold">Item</th>
-                        <th className="p-2 text-left font-semibold">Descrição</th>
-                        <th className="p-2 text-right font-semibold">Qtd</th>
-                        <th className="p-2 text-right font-semibold">Unitário</th>
-                        <th className="p-2 text-right font-semibold">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lotesLimpos.map((lote, i) => (
-                        <tr key={i} className="border-t hover:bg-muted/20">
-                          <td className="p-2">{lote.numero}</td>
-                          <td className="p-2">{lote.item}</td>
-                          <td className="p-2">{lote.descricao}</td>
-                          <td className="p-2 text-right">{lote.quantidade}</td>
-                          <td className="p-2 text-right">{fmtBRL(lote.valorUnitario)}</td>
-                          <td className="p-2 text-right font-medium">{fmtBRL(lote.valorTotal)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-muted-foreground italic text-sm">
-                  Sem lotes registrados
-                </p>
-              )}
-            </CardContent>
-          )}
-        </Card>
-
-        {/* Prorrogações e Reajustes */}
-        <Card className="shadow-sm">
-          <CardHeader
-            onClick={() => toggleSecao("Prorrogações e Reajustes")}
-            className="flex flex-row justify-between items-center cursor-pointer hover:bg-accent/50 transition-colors"
-          >
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <RefreshCcw className="h-4 w-4" /> Prorrogações e Reajustes
-            </CardTitle>
-            {abertas["Prorrogações e Reajustes"] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </CardHeader>
-          
-          {abertas["Prorrogações e Reajustes"] && (
-            <CardContent>
-              {aditivosLimpos.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="p-2 text-left font-semibold">Tipo</th>
-                        <th className="p-2 text-left font-semibold">Data Início</th>
-                        <th className="p-2 text-left font-semibold">Data Fim</th>
-                        <th className="p-2 text-right font-semibold">Valor</th>
-                        <th className="p-2 text-left font-semibold">Descrição</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {aditivosLimpos.map((aditivo, i) => (
-                        <tr key={i} className="border-t hover:bg-muted/20">
-                          <td className="p-2">{aditivo.tipo}</td>
-                          <td className="p-2">{fmtData(aditivo.dataAssinatura)}</td>
-                          <td className="p-2">{fmtData(aditivo.novaVigenciaFinal)}</td>
-                          <td className="p-2 text-right font-medium">
-                            {fmtBRL(aditivo.valorNovo)}
-                          </td>
-                          <td className="p-2">{aditivo.observacoes}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-muted-foreground italic text-sm">
-                  Sem aditivos identificados
-                </p>
-              )}
-            </CardContent>
-          )}
-        </Card>
-
-        {/* Empenhos */}
-        <Card className="shadow-sm">
-          <CardHeader
-            onClick={() => toggleSecao("Empenhos")}
-            className="flex flex-row justify-between items-center cursor-pointer hover:bg-accent/50 transition-colors"
-          >
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Layers className="h-4 w-4" /> Empenhos
-            </CardTitle>
-            {abertas["Empenhos"] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </CardHeader>
-          
-          {abertas["Empenhos"] && (
-            <CardContent>
-              {empenhosLimpos.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="p-2 text-left font-semibold">Número</th>
-                        <th className="p-2 text-left font-semibold">Data</th>
-                        <th className="p-2 text-left font-semibold">Dotação</th>
-                        <th className="p-2 text-right font-semibold">Valor Empenhado</th>
-                        <th className="p-2 text-right font-semibold">Saldo</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {empenhosLimpos.map((empenho, i) => (
-                        <tr key={i} className="border-t hover:bg-muted/20">
-                          <td className="p-2">{empenho.numero}</td>
-                          <td className="p-2">{empenho.data}</td>
-                          <td className="p-2">{empenho.dotacao}</td>
-                          <td className="p-2 text-right font-medium">
-                            {fmtBRL(empenho.valorEmpenhado)}
-                          </td>
-                          <td className="p-2 text-right">{fmtBRL(empenho.saldo)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-muted-foreground italic text-sm">
-                  Sem empenhos registrados
-                </p>
-              )}
-            </CardContent>
-          )}
-        </Card>
-
-        {/* Pagamentos */}
-        <Card className="shadow-sm">
-          <CardHeader
-            onClick={() => toggleSecao("Pagamentos")}
-            className="flex flex-row justify-between items-center cursor-pointer hover:bg-accent/50 transition-colors"
-          >
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <DollarSign className="h-4 w-4" /> Pagamentos
-            </CardTitle>
-            {abertas["Pagamentos"] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </CardHeader>
-          
-          {abertas["Pagamentos"] && (
-            <CardContent>
-              {pagamentosLimpos.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="p-2 text-left font-semibold">Data</th>
-                        <th className="p-2 text-left font-semibold">Processo</th>
-                        <th className="p-2 text-left font-semibold">Mês Ref.</th>
-                        <th className="p-2 text-left font-semibold">Empenho</th>
-                        <th className="p-2 text-right font-semibold">Valor</th>
-                        <th className="p-2 text-left font-semibold">Observações</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {pagamentosLimpos.map((pagamento, i) => (
-                        <tr key={i} className="border-t hover:bg-muted/20">
-                          <td className="p-2">{pagamento.data}</td>
-                          <td className="p-2">{pagamento.processo}</td>
-                          <td className="p-2">{pagamento.mesReferencia}</td>
-                          <td className="p-2">{pagamento.empenho}</td>
-                          <td className="p-2 text-right font-medium">
-                            {fmtBRL(pagamento.valor)}
-                          </td>
-                          <td className="p-2">{pagamento.observacoes}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <p className="text-muted-foreground italic text-sm">
-                  Sem pagamentos identificados
-                </p>
-              )}
-            </CardContent>
-          )}
-        </Card>
-      </section>
+      </div>
     </div>
   );
 }
